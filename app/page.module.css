@@ -1,0 +1,248 @@
+/* 기본 */
+.page {
+  font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+  background: #f5f0e8;
+  min-height: 100vh;
+  color: #1a1a2e;
+}
+
+/* HEADER */
+.header {
+  border-bottom: 2.5px solid #1a1a2e;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  background: #f5f0e8;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px 16px 0;
+  border-right: 1px solid #d4c9b0;
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  color: #c94a2e;
+}
+.diamond {
+  width: 7px; height: 7px;
+  background: #c94a2e;
+  display: inline-block;
+  transform: rotate(45deg);
+  flex-shrink: 0;
+}
+.dateStr {
+  font-family: monospace;
+  font-size: 11px;
+  color: #8a8070;
+  letter-spacing: 0.08em;
+}
+.headerRight {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.liveDot {
+  width: 7px; height: 7px;
+  background: #4caf50;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.liveText {
+  font-family: monospace;
+  font-size: 10px;
+  color: #8a8070;
+}
+
+/* HERO */
+.hero {
+  padding: 36px 40px 28px;
+  border-bottom: 1px solid #d4c9b0;
+  display: grid;
+  grid-template-columns: 1fr 260px;
+  gap: 36px;
+  align-items: center;
+}
+.heroText { display: flex; flex-direction: column; justify-content: center; }
+.headline {
+  font-family: Georgia, 'Noto Serif KR', serif;
+  font-size: clamp(32px, 4.5vw, 60px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.headlineAccent { color: #c94a2e; display: block; }
+.sub {
+  font-size: 13px;
+  color: #8a8070;
+  margin-top: 10px;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+}
+.badges { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+.badge {
+  background: #1a1a2e;
+  color: #f5f0e8;
+  font-size: 11px;
+  padding: 4px 10px;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+/* WEATHER */
+.weatherCard {
+  background: #1a1a2e;
+  color: #f5f0e8;
+  padding: 24px 26px;
+  position: relative;
+  overflow: hidden;
+}
+.weatherCard::before {
+  content: '';
+  position: absolute;
+  top: -25px; right: -25px;
+  width: 90px; height: 90px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 50%;
+}
+.weatherCity { font-family: monospace; font-size: 10px; letter-spacing: 0.2em; opacity: 0.45; margin-bottom: 6px; }
+.weatherTemp { font-family: Georgia, serif; font-size: 54px; font-weight: 300; line-height: 1; }
+.weatherTemp sup { font-size: 22px; }
+.weatherDesc { font-size: 14px; margin-top: 4px; }
+.weatherRange { font-size: 11px; opacity: 0.55; margin-bottom: 14px; }
+.weatherDetails {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.weatherDetailItem { text-align: center; }
+.weatherDetailItem strong { display: block; font-family: monospace; font-size: 13px; font-weight: 600; }
+.weatherDetailItem span { font-family: monospace; font-size: 9px; opacity: 0.45; margin-top: 2px; display: block; }
+.weatherError { opacity: 0.6; font-size: 13px; }
+
+/* MAIN */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+}
+
+/* NEWS */
+.newsSection {
+  padding: 28px 40px;
+  border-right: 1px solid #d4c9b0;
+}
+.sectionLabel {
+  font-family: monospace;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: #c94a2e;
+  text-transform: uppercase;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.labelLine { flex: 1; height: 1px; background: #d4c9b0; display: block; }
+.labelBadge { font-size: 9px; background: #c94a2e; color: #fff; padding: 2px 7px; letter-spacing: 0.1em; }
+.newsEmpty { color: #8a8070; font-size: 13px; padding: 40px 0; text-align: center; }
+.newsList { display: flex; flex-direction: column; }
+.newsItem {
+  padding: 20px 8px;
+  border-bottom: 1px solid #e8e0d0;
+  display: grid;
+  grid-template-columns: 32px 1fr;
+  gap: 14px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 2px;
+  transition: background 0.15s;
+}
+.newsItem:last-child { border-bottom: none; }
+.newsItem:hover { background: rgba(201,74,46,0.04); }
+.newsItem:hover .newsTitle { color: #c94a2e; }
+.newsNum { font-family: monospace; font-size: 11px; color: #b0a090; padding-top: 3px; font-weight: 600; }
+.newsContent {}
+.newsMeta { display: flex; gap: 10px; align-items: center; margin-bottom: 7px; }
+.newsSource { font-family: monospace; font-size: 10px; color: #c94a2e; letter-spacing: 0.1em; text-transform: uppercase; }
+.newsDate { font-family: monospace; font-size: 10px; color: #b0a090; }
+.newsTitle {
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-bottom: 8px;
+  color: #1a1a2e;
+  transition: color 0.15s;
+}
+.newsDesc { font-size: 13px; color: #7a7060; line-height: 1.7; font-weight: 300; }
+
+/* SIDEBAR */
+.sidebar { padding: 28px 24px; background: #fdfaf4; display: flex; flex-direction: column; gap: 28px; }
+.sideSection {}
+.keywordBadge {
+  display: inline-block;
+  background: #1a1a2e;
+  color: #f5f0e8;
+  padding: 4px 12px;
+  font-family: monospace;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  margin-bottom: 14px;
+}
+.infoBox {
+  background: #f5f0e8;
+  border: 1px solid #d4c9b0;
+  padding: 16px;
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: #7a7060;
+  font-weight: 300;
+}
+.infoBox strong { display: block; font-family: Georgia, serif; font-size: 13.5px; color: #1a1a2e; font-weight: 700; margin-bottom: 6px; }
+.quickLinks { display: flex; flex-direction: column; gap: 2px; }
+.quickLink {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  background: #f5f0e8;
+  border: 1px solid #d4c9b0;
+  text-decoration: none;
+  color: #1a1a2e;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.quickLink:hover { background: #1a1a2e; color: #f5f0e8; }
+.arrow { margin-left: auto; opacity: 0.3; font-size: 10px; }
+
+/* FOOTER */
+.footer {
+  border-top: 2px solid #1a1a2e;
+  padding: 12px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-family: monospace;
+  font-size: 10px;
+  color: #9a9080;
+  letter-spacing: 0.08em;
+}
+.footerLeft { display: flex; align-items: center; gap: 6px; }
+
+/* 반응형 */
+@media (max-width: 768px) {
+  .header, .newsSection, .footer { padding-left: 20px; padding-right: 20px; }
+  .hero { grid-template-columns: 1fr; padding: 24px 20px; }
+  .main { grid-template-columns: 1fr; }
+  .sidebar { border-top: 1px solid #d4c9b0; }
+  .newsSection { border-right: none; }
+}
