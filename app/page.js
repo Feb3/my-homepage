@@ -2,11 +2,49 @@ import styles from "./page.module.css";
 
 const QUICK_LINKS = [
   { icon: "🏢", label: "LH 한국토지주택공사", url: "https://www.lh.or.kr" },
-  { icon: "🏙️", label: "SH 서울주택도시공사", url: "https://www.seoulhousing.kr" },
   { icon: "🗂️", label: "서울 정비사업 정보몽땅", url: "https://cleanup.seoul.go.kr" },
   { icon: "🗺️", label: "네이버 부동산", url: "https://land.naver.com" },
   { icon: "📋", label: "국토교통부", url: "https://www.molit.go.kr" },
 ];
+
+const DISTRICTS = [
+  "수원고색", "광명6구역", "광명3구역", "안양충훈부", "의왕내손",
+  "숭인동1169", "시흥4동4", "면목9구역", "성북1구역", "신월5동77",
+  "신월7동2", "거여새마을", "창동470", "천호A1-1", "전농9구역",
+  "가리봉2-92", "신길1구역", "장위9구역", "상계3구역", "봉천13구역",
+  "신설1구역", "도림1구역", "중화5구역"
+];
+
+async function fetchNaver(query, clientId, clientSecret, display = 5) {
+  const res = await fetch(
+    `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(query)}&display=${display}&sort=date`,
+    {
+      headers: {
+        "X-Naver-Client-Id": clientId,
+        "X-Naver-Client-Secret": clientSecret,
+      },
+      next: { revalidate: 3600 },
+    }
+  );
+  if (!res.ok) return [];
+  const data = await res.json();
+  return data.items || [];
+}
+
+function formatItem(item) {
+  return {
+    title: item.title.replace(/<[^>]+>/g, ""),
+    desc: item.description.replace(/<[^>]+>/g, ""),
+    url: item.originallink || item.link,
+    source: item.originallink
+      ? new URL(item.originallink).hostname.replace("www.", "")
+      : "뉴스",
+    date: new Date(item.pubDate).toLocaleDateString("ko-KR", {
+      month: "long", day: "numeric",
+    }),
+    pubDate: new Date(item.pubDate).getTime(),
+  };
+}
 
 async function getWeather() {
   try {
@@ -32,58 +70,20 @@ async function getWeather() {
   } catch { return null; }
 }
 
-async function getNews() {
-  const clientId = process.env.NAVER_CLIENT_ID;
-  const clientSecret = process.env.NAVER_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) return [];
-
-  const KEYWORDS = [
-    "공공재개발",
-    "수원고색 공공재개발", "광명6구역 공공재개발", "광명3구역 공공재개발",
-    "안양충훈부 공공재개발", "의왕내손 공공재개발", "숭인동1169 공공재개발",
-    "시흥4동4 공공재개발", "면목9구역 공공재개발", "성북1구역 공공재개발",
-    "신월5동77 공공재개발", "신월7동2 공공재개발", "거여새마을 공공재개발",
-    "창동470 공공재개발", "천호A1-1 공공재개발", "전농9구역 공공재개발",
-    "가리봉2-92 공공재개발", "신길1구역 공공재개발", "장위9구역 공공재개발",
-    "상계3구역 공공재개발", "봉천13구역 공공재개발", "신설1구역 공공재개발",
-    "도림1구역 공공재개발", "중화5구역 공공재개발"
-  ];
-
+async function getNews(clientId, clientSecret) {
   try {
-    const results = await Promise.all(
-      KEYWORDS.map(async (kw) => {
-        const res = await fetch(
-          `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(kw)}&display=3&sort=date`,
-          {
-            headers: {
-              "X-Naver-Client-Id": clientId,
-              "X-Naver-Client-Secret": clientSecret,
-            },
-            next: { revalidate: 3600 },
-          }
-        );
-        if (!res.ok) return [];
-        const data = await res.json();
-        return data.items || [];
-      })
-    );
+    // 공공재개발 뉴스 5건
+    const publicItems = await fetchNaver("공공재개발", clientId, clientSecret, 5);
+    const publicNews = publicItems.map(formatItem).slice(0, 5);
 
-    const seen = new Set();
-    return results
+    // 담당 지구 뉴스 - 모든 지구 동시 검색 후 최신 5건
+    const districtResults = await Promise.all(
+      DISTRICTS.map((d) => fetchNaver(`${d} 공공재개발`, clientId, clientSecret, 3))
+    );
+    const seen = new Set(publicNews.map((n) => n.url));
+    const districtNews = districtResults
       .flat()
-      .map((item) => ({
-        title: item.title.replace(/<[^>]+>/g, ""),
-        desc: item.description.replace(/<[^>]+>/g, ""),
-        url: item.originallink || item.link,
-        source: item.originallink
-          ? new URL(item.originallink).hostname.replace("www.", "")
-          : "뉴스",
-        date: new Date(item.pubDate).toLocaleDateString("ko-KR", {
-          month: "long", day: "numeric",
-        }),
-        pubDate: new Date(item.pubDate).getTime(),
-      }))
+      .map(formatItem)
       .filter((item) => {
         if (seen.has(item.url)) return false;
         seen.add(item.url);
@@ -91,11 +91,18 @@ async function getNews() {
       })
       .sort((a, b) => b.pubDate - a.pubDate)
       .slice(0, 5);
-  } catch { return []; }
+
+    return { publicNews, districtNews };
+  } catch { return { publicNews: [], districtNews: [] }; }
 }
 
 export default async function Home() {
-  const [weather, news] = await Promise.all([getWeather(), getNews()]);
+  const clientId = process.env.NAVER_CLIENT_ID;
+  const clientSecret = process.env.NAVER_CLIENT_SECRET;
+  const [weather, { publicNews, districtNews }] = await Promise.all([
+    getWeather(),
+    getNews(clientId, clientSecret),
+  ]);
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric", month: "long", day: "numeric", weekday: "long",
   });
@@ -152,16 +159,18 @@ export default async function Home() {
 
       <div className={styles.main}>
         <section className={styles.newsSection}>
+
+          {/* 공공재개발 뉴스 */}
           <div className={styles.sectionLabel}>
-            공공재개발 주요 뉴스
+            공공재개발 뉴스
             <span className={styles.labelLine}></span>
             <span className={styles.labelBadge}>실시간</span>
           </div>
-          {news.length === 0 ? (
+          {publicNews.length === 0 ? (
             <div className={styles.newsEmpty}>뉴스를 불러오는 중이거나 API 키를 확인해주세요.</div>
           ) : (
             <div className={styles.newsList}>
-              {news.map((item, i) => (
+              {publicNews.map((item, i) => (
                 <a key={i} href={item.url} target="_blank" rel="noopener" className={styles.newsItem}>
                   <span className={styles.newsNum}>0{i + 1}</span>
                   <div className={styles.newsContent}>
@@ -176,6 +185,33 @@ export default async function Home() {
               ))}
             </div>
           )}
+
+          {/* 담당 지구 뉴스 */}
+          <div className={styles.sectionLabel} style={{marginTop: "36px"}}>
+            담당 지구 뉴스
+            <span className={styles.labelLine}></span>
+            <span className={styles.labelBadge}>실시간</span>
+          </div>
+          {districtNews.length === 0 ? (
+            <div className={styles.newsEmpty}>담당 지구 관련 최신 뉴스가 없습니다.</div>
+          ) : (
+            <div className={styles.newsList}>
+              {districtNews.map((item, i) => (
+                <a key={i} href={item.url} target="_blank" rel="noopener" className={styles.newsItem}>
+                  <span className={styles.newsNum}>0{i + 1}</span>
+                  <div className={styles.newsContent}>
+                    <div className={styles.newsMeta}>
+                      <span className={styles.newsSource}>{item.source}</span>
+                      <span className={styles.newsDate}>{item.date}</span>
+                    </div>
+                    <div className={styles.newsTitle}>{item.title}</div>
+                    <div className={styles.newsDesc}>{item.desc}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+
         </section>
 
         <aside className={styles.sidebar}>
@@ -187,6 +223,12 @@ export default async function Home() {
             <div className={styles.infoBox}>
               <strong>공공재개발이란?</strong>
               LH·SH 등 공공기관이 민간과 공동 시행하는 재개발 방식. 용적률 혜택 대신 일부 세대를 공공임대로 공급합니다.
+            </div>
+            <div className={styles.keywordBadge} style={{marginTop:"12px"}}># 담당 지구 ({DISTRICTS.length}개)</div>
+            <div className={styles.districtList}>
+              {DISTRICTS.map((d) => (
+                <span key={d} className={styles.districtTag}>{d}</span>
+              ))}
             </div>
           </div>
 
