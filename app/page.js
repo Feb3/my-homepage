@@ -78,7 +78,7 @@ async function getNews(clientId, clientSecret) {
 
     // 담당 지구 뉴스 - 모든 지구 동시 검색 후 최신 5건
     const districtResults = await Promise.all(
-      DISTRICTS.map((d) => fetchNaver(`${d} 공공재개발`, clientId, clientSecret, 3))
+      DISTRICTS.map((d) => fetchNaver(d, clientId, clientSecret, 3))
     );
   const seen = new Set(publicNews.map((n) => n.url));
     const districtNews = districtResults
