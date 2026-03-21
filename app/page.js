@@ -51,20 +51,62 @@ async function getPublicNews() {
     );
     if (!res.ok) return [];
     const data = await res.json();
-    return data.items
+    return data.items.map((item) => ({
+      title: item.title.replace(/<[^>]+>/g, ""),
+      desc: item.description.replace(/<[^>]+>/g, ""),
+      url: item.originallink || item.link,
+      source: item.originallink ? new URL(item.originallink).hostname.replace("www.", "") : "뉴스",
+      date: new Date(item.pubDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }),
+    })).slice(0, 3);
+  } catch { return []; }
+}
+
+async function getDistrictLatestNews() {
+  const clientId = process.env.NAVER_CLIENT_ID;
+  const clientSecret = process.env.NAVER_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return [];
+  try {
+    const results = await Promise.all(
+      DISTRICTS.map(async (d) => {
+        const res = await fetch(
+          `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(d + " 재개발")}&display=5&sort=date`,
+          { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret }, cache: "no-store" }
+        );
+        if (!res.ok) return [];
+        const data = await res.json();
+        return (data.items || []).filter((item) =>
+          item.title.replace(/<[^>]+>/g, "").includes(d)
+        );
+      })
+    );
+
+    const seen = new Set();
+    return results
+      .flat()
       .map((item) => ({
         title: item.title.replace(/<[^>]+>/g, ""),
         desc: item.description.replace(/<[^>]+>/g, ""),
         url: item.originallink || item.link,
         source: item.originallink ? new URL(item.originallink).hostname.replace("www.", "") : "뉴스",
         date: new Date(item.pubDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }),
+        pubDate: new Date(item.pubDate).getTime(),
       }))
-      .slice(0, 3);
+      .filter((item) => {
+        if (seen.has(item.url)) return false;
+        seen.add(item.url);
+        return true;
+      })
+      .sort((a, b) => b.pubDate - a.pubDate)
+      .slice(0, 10);
   } catch { return []; }
 }
 
 export default async function Home() {
-  const [weather, publicNews] = await Promise.all([getWeather(), getPublicNews()]);
+  const [weather, publicNews, districtLatestNews] = await Promise.all([
+    getWeather(),
+    getPublicNews(),
+    getDistrictLatestNews(),
+  ]);
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric", month: "long", day: "numeric", weekday: "long",
   });
@@ -122,6 +164,7 @@ export default async function Home() {
       <div className={styles.main}>
         <section className={styles.newsSection}>
 
+          {/* 공공재개발 뉴스 */}
           <div className={styles.sectionLabel}>
             공공재개발 뉴스
             <span className={styles.labelLine}></span>
@@ -147,10 +190,36 @@ export default async function Home() {
             </div>
           )}
 
+          {/* 담당 지구 전체 최신뉴스 */}
           <div className={styles.sectionLabel} style={{marginTop: "36px"}}>
-            담당 지구 뉴스
+            담당 지구 최신 뉴스
             <span className={styles.labelLine}></span>
             <span className={styles.labelBadge}>실시간</span>
+          </div>
+          {districtLatestNews.length === 0 ? (
+            <div className={styles.newsEmpty}>담당 지구 관련 최신 뉴스가 없습니다.</div>
+          ) : (
+            <div className={styles.newsList}>
+              {districtLatestNews.map((item, i) => (
+                <a key={i} href={item.url} target="_blank" rel="noopener" className={styles.newsItem}>
+                  <span className={styles.newsNum}>{String(i + 1).padStart(2, "0")}</span>
+                  <div className={styles.newsContent}>
+                    <div className={styles.newsMeta}>
+                      <span className={styles.newsSource}>{item.source}</span>
+                      <span className={styles.newsDate}>{item.date}</span>
+                    </div>
+                    <div className={styles.newsTitle}>{item.title}</div>
+                    <div className={styles.newsDesc}>{item.desc}</div>
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {/* 구역별 아카이브 */}
+          <div className={styles.sectionLabel} style={{marginTop: "36px"}}>
+            구역별 아카이브
+            <span className={styles.labelLine}></span>
           </div>
           <DistrictNews districts={DISTRICTS} />
 
