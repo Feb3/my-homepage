@@ -19,37 +19,89 @@ async function getWeather() {
     const d = data.daily;
     const WEATHER_DESC = {0:"맑음",1:"대체로 맑음",2:"구름 조금",3:"흐림",45:"안개",48:"짙은 안개",51:"가벼운 이슬비",53:"이슬비",55:"강한 이슬비",61:"가벼운 비",63:"비",65:"강한 비",71:"약한 눈",73:"눈",75:"강한 눈",80:"소나기",81:"소나기",82:"강한 소나기",95:"뇌우",99:"뇌우+우박"};
     const WEATHER_ICON = {0:"☀️",1:"🌤️",2:"⛅",3:"☁️",45:"🌫️",48:"🌫️",51:"🌦️",53:"🌦️",55:"🌧️",61:"🌧️",63:"🌧️",65:"🌧️",71:"🌨️",73:"❄️",75:"❄️",80:"🌦️",81:"🌧️",82:"⛈️",95:"⛈️",99:"⛈️"};
-    return { temp: Math.round(c.temperature_2m), feels: Math.round(c.apparent_temperature), humidity: c.relative_humidity_2m, wind: c.wind_speed_10m, desc: WEATHER_DESC[c.weather_code] ?? "날씨 정보", icon: WEATHER_ICON[c.weather_code] ?? "🌡️", high: Math.round(d.temperature_2m_max[0]), low: Math.round(d.temperature_2m_min[0]) };
+    return {
+      temp: Math.round(c.temperature_2m),
+      feels: Math.round(c.apparent_temperature),
+      humidity: c.relative_humidity_2m,
+      wind: c.wind_speed_10m,
+      desc: WEATHER_DESC[c.weather_code] ?? "날씨 정보",
+      icon: WEATHER_ICON[c.weather_code] ?? "🌡️",
+      high: Math.round(d.temperature_2m_max[0]),
+      low: Math.round(d.temperature_2m_min[0]),
+    };
   } catch { return null; }
 }
 
 async function getNews() {
+  const clientId = process.env.NAVER_CLIENT_ID;
+  const clientSecret = process.env.NAVER_CLIENT_SECRET;
+
+  if (!clientId || !clientSecret) return [];
+
+  const KEYWORDS = [
+    "공공재개발",
+    "수원고색 공공재개발", "광명6구역 공공재개발", "광명3구역 공공재개발",
+    "안양충훈부 공공재개발", "의왕내손 공공재개발", "숭인동1169 공공재개발",
+    "시흥4동4 공공재개발", "면목9구역 공공재개발", "성북1구역 공공재개발",
+    "신월5동77 공공재개발", "신월7동2 공공재개발", "거여새마을 공공재개발",
+    "창동470 공공재개발", "천호A1-1 공공재개발", "전농9구역 공공재개발",
+    "가리봉2-92 공공재개발", "신길1구역 공공재개발", "장위9구역 공공재개발",
+    "상계3구역 공공재개발", "봉천13구역 공공재개발", "신설1구역 공공재개발",
+    "도림1구역 공공재개발", "중화5구역 공공재개발"
+  ];
+
   try {
-    const clientId = process.env.NAVER_CLIENT_ID;
-    const clientSecret = process.env.NAVER_CLIENT_SECRET;
-    if (!clientId || !clientSecret) return [];
-    const res = await fetch(
-      "https://openapi.naver.com/v1/search/news.json?query=공공재개발&display=5&sort=date",
-      { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret }, next: { revalidate: 3600 } }
+    const results = await Promise.all(
+      KEYWORDS.map(async (kw) => {
+        const res = await fetch(
+          `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(kw)}&display=3&sort=date`,
+          {
+            headers: {
+              "X-Naver-Client-Id": clientId,
+              "X-Naver-Client-Secret": clientSecret,
+            },
+            next: { revalidate: 3600 },
+          }
+        );
+        if (!res.ok) return [];
+        const data = await res.json();
+        return data.items || [];
+      })
     );
-    const data = await res.json();
-    return data.items.map((item) => ({
-      title: item.title.replace(/<[^>]+>/g, ""),
-      desc: item.description.replace(/<[^>]+>/g, ""),
-      url: item.originallink || item.link,
-      source: item.originallink ? new URL(item.originallink).hostname.replace("www.", "") : "뉴스",
-      date: new Date(item.pubDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }),
-    }));
+
+    const seen = new Set();
+    return results
+      .flat()
+      .map((item) => ({
+        title: item.title.replace(/<[^>]+>/g, ""),
+        desc: item.description.replace(/<[^>]+>/g, ""),
+        url: item.originallink || item.link,
+        source: item.originallink
+          ? new URL(item.originallink).hostname.replace("www.", "")
+          : "뉴스",
+        date: new Date(item.pubDate).toLocaleDateString("ko-KR", {
+          month: "long", day: "numeric",
+        }),
+        pubDate: new Date(item.pubDate).getTime(),
+      }))
+      .filter((item) => {
+        if (seen.has(item.url)) return false;
+        seen.add(item.url);
+        return true;
+      })
+      .sort((a, b) => b.pubDate - a.pubDate)
+      .slice(0, 5);
   } catch { return []; }
 }
 
 export default async function Home() {
   const [weather, news] = await Promise.all([getWeather(), getNews()]);
-  const today = new Date().toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric", weekday: "long" });
+  const today = new Date().toLocaleDateString("ko-KR", {
+    year: "numeric", month: "long", day: "numeric", weekday: "long",
+  });
 
   return (
     <div className={styles.page}>
-      {/* HEADER */}
       <header className={styles.header}>
         <div className={styles.logo}>
           <span className={styles.diamond}></span>
@@ -62,7 +114,6 @@ export default async function Home() {
         </div>
       </header>
 
-      {/* HERO */}
       <section className={styles.hero}>
         <div className={styles.heroText}>
           <h1 className={styles.headline}>
@@ -71,13 +122,12 @@ export default async function Home() {
           </h1>
           <p className={styles.sub}>날씨 · 실시간 뉴스 · 주요 링크 — 매일 자동 최신화되는 나만의 시작 페이지</p>
           <div className={styles.badges}>
-            {["날씨 30분 갱신", "뉴스 1시간 갱신", "Vercel 자동 배포"].map(b => (
+            {["날씨 30분 갱신", "뉴스 1시간 갱신", "Vercel 자동 배포"].map((b) => (
               <span key={b} className={styles.badge}>{b}</span>
             ))}
           </div>
         </div>
 
-        {/* WEATHER */}
         <div className={styles.weatherCard}>
           {weather ? (
             <>
@@ -100,9 +150,7 @@ export default async function Home() {
         </div>
       </section>
 
-      {/* MAIN */}
       <div className={styles.main}>
-        {/* NEWS */}
         <section className={styles.newsSection}>
           <div className={styles.sectionLabel}>
             공공재개발 주요 뉴스
@@ -110,9 +158,7 @@ export default async function Home() {
             <span className={styles.labelBadge}>실시간</span>
           </div>
           {news.length === 0 ? (
-            <div className={styles.newsEmpty}>
-              뉴스를 불러오는 중이거나 API 키를 확인해주세요.
-            </div>
+            <div className={styles.newsEmpty}>뉴스를 불러오는 중이거나 API 키를 확인해주세요.</div>
           ) : (
             <div className={styles.newsList}>
               {news.map((item, i) => (
@@ -132,10 +178,11 @@ export default async function Home() {
           )}
         </section>
 
-        {/* SIDEBAR */}
         <aside className={styles.sidebar}>
           <div className={styles.sideSection}>
-            <div className={styles.sectionLabel} style={{fontSize:"9px"}}>키워드 정보<span className={styles.labelLine}></span></div>
+            <div className={styles.sectionLabel} style={{fontSize:"9px"}}>
+              키워드 정보<span className={styles.labelLine}></span>
+            </div>
             <div className={styles.keywordBadge}># 공공재개발</div>
             <div className={styles.infoBox}>
               <strong>공공재개발이란?</strong>
@@ -144,7 +191,9 @@ export default async function Home() {
           </div>
 
           <div className={styles.sideSection}>
-            <div className={styles.sectionLabel} style={{fontSize:"9px"}}>빠른 링크<span className={styles.labelLine}></span></div>
+            <div className={styles.sectionLabel} style={{fontSize:"9px"}}>
+              빠른 링크<span className={styles.labelLine}></span>
+            </div>
             <div className={styles.quickLinks}>
               {QUICK_LINKS.map(({ icon, label, url }) => (
                 <a key={label} href={url} target="_blank" rel="noopener" className={styles.quickLink}>
