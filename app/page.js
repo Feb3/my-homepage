@@ -73,8 +73,11 @@ async function getWeather() {
 async function getNews(clientId, clientSecret) {
   try {
     // 공공재개발 뉴스 5건
-    const publicItems = await fetchNaver("공공재개발", clientId, clientSecret, 5);
-    const publicNews = publicItems.map(formatItem).slice(0, 5);
+    const publicItems = await fetchNaver("공공재개발", clientId, clientSecret, 10);
+    const publicNews = publicItems
+      .map(formatItem)
+      .filter((item) => item.title.includes("공공재개발"))
+      .slice(0, 5);
 
     // 담당 지구 뉴스 - 모든 지구 동시 검색 후 최신 5건
     const districtResults = await Promise.all(
