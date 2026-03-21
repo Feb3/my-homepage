@@ -74,7 +74,7 @@ async function getNews(clientId, clientSecret) {
   if (!clientId || !clientSecret) return { publicNews: [], districtNews: [] };
   try {
     // 공공재개발 뉴스 - 제목에 "공공재개발" 포함된 것만
-    const publicItems = await fetchNaver("공공재개발", clientId, clientSecret, 3);
+    const publicItems = await fetchNaver("공공재개발", clientId, clientSecret, 5);
     const publicNews = publicItems
       .map(formatItem)
       .slice(0, 3);
