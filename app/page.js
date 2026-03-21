@@ -1,4 +1,5 @@
 import styles from "./page.module.css";
+import DistrictNews from "./DistrictNews";
 
 const QUICK_LINKS = [
   { icon: "🏢", label: "LH 한국토지주택공사", url: "https://www.lh.or.kr" },
@@ -7,44 +8,13 @@ const QUICK_LINKS = [
   { icon: "📋", label: "국토교통부", url: "https://www.molit.go.kr" },
 ];
 
-const DISTRICTS = [
+export const DISTRICTS = [
   "수원고색", "광명6구역", "광명3구역", "안양충훈부", "의왕내손",
   "숭인동1169", "시흥4동4", "면목9구역", "성북1구역", "신월5동77",
   "신월7동2", "거여새마을", "창동470", "천호A1-1", "전농9구역",
   "가리봉2-92", "신길1구역", "장위9구역", "상계3구역", "봉천13구역",
   "신설1구역", "도림1구역", "중화5구역"
 ];
-
-async function fetchNaver(query, clientId, clientSecret, display = 5) {
-  const res = await fetch(
-    `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(query)}&display=${display}&sort=date`,
-    {
-      headers: {
-        "X-Naver-Client-Id": clientId,
-        "X-Naver-Client-Secret": clientSecret,
-      },
-      cache: "no-store",
-    }
-  );
-  if (!res.ok) return [];
-  const data = await res.json();
-  return data.items || [];
-}
-
-function formatItem(item) {
-  return {
-    title: item.title.replace(/<[^>]+>/g, ""),
-    desc: item.description.replace(/<[^>]+>/g, ""),
-    url: item.originallink || item.link,
-    source: item.originallink
-      ? new URL(item.originallink).hostname.replace("www.", "")
-      : "뉴스",
-    date: new Date(item.pubDate).toLocaleDateString("ko-KR", {
-      month: "long", day: "numeric",
-    }),
-    pubDate: new Date(item.pubDate).getTime(),
-  };
-}
 
 async function getWeather() {
   try {
@@ -70,44 +40,31 @@ async function getWeather() {
   } catch { return null; }
 }
 
-async function getNews(clientId, clientSecret) {
-  if (!clientId || !clientSecret) return { publicNews: [], districtNews: [] };
+async function getPublicNews() {
+  const clientId = process.env.NAVER_CLIENT_ID;
+  const clientSecret = process.env.NAVER_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return [];
   try {
-    // 공공재개발 뉴스 - 제목에 "공공재개발" 포함된 것만
-    const publicItems = await fetchNaver("공공재개발", clientId, clientSecret, 5);
-    const publicNews = publicItems
-      .map(formatItem)
-      .slice(0, 3);
-
-    // 담당 지구 뉴스 - 제목에 지구명 포함된 것만
-    const districtResults = await Promise.all(
-      DISTRICTS.map((d) => fetchNaver(`${d} 재개발`, clientId, clientSecret, 3))
+    const res = await fetch(
+      `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent("공공재개발")}&display=10&sort=date`,
+      { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret }, cache: "no-store" }
     );
-    const seen = new Set(publicNews.map((n) => n.url));
-    const districtNews = districtResults
-      .flat()
-      .map(formatItem)
-      .filter((item) => {
-        if (seen.has(item.url)) return false;
-        const hasDistrict = DISTRICTS.some((d) => item.title.includes(d));
-        if (!hasDistrict) return false;
-        seen.add(item.url);
-        return true;
-      })
-      .sort((a, b) => b.pubDate - a.pubDate)
-      .slice(0, 5);
-
-    return { publicNews, districtNews };
-  } catch { return { publicNews: [], districtNews: [] }; }
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.items
+      .map((item) => ({
+        title: item.title.replace(/<[^>]+>/g, ""),
+        desc: item.description.replace(/<[^>]+>/g, ""),
+        url: item.originallink || item.link,
+        source: item.originallink ? new URL(item.originallink).hostname.replace("www.", "") : "뉴스",
+        date: new Date(item.pubDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }),
+      }))
+      .slice(0, 3);
+  } catch { return []; }
 }
 
 export default async function Home() {
-  const clientId = process.env.NAVER_CLIENT_ID;
-  const clientSecret = process.env.NAVER_CLIENT_SECRET;
-  const [weather, { publicNews, districtNews }] = await Promise.all([
-    getWeather(),
-    getNews(clientId, clientSecret),
-  ]);
+  const [weather, publicNews] = await Promise.all([getWeather(), getPublicNews()]);
   const today = new Date().toLocaleDateString("ko-KR", {
     year: "numeric", month: "long", day: "numeric", weekday: "long",
   });
@@ -195,25 +152,7 @@ export default async function Home() {
             <span className={styles.labelLine}></span>
             <span className={styles.labelBadge}>실시간</span>
           </div>
-          {districtNews.length === 0 ? (
-            <div className={styles.newsEmpty}>담당 지구 관련 최신 뉴스가 없습니다.</div>
-          ) : (
-            <div className={styles.newsList}>
-              {districtNews.map((item, i) => (
-                <a key={i} href={item.url} target="_blank" rel="noopener" className={styles.newsItem}>
-                  <span className={styles.newsNum}>0{i + 1}</span>
-                  <div className={styles.newsContent}>
-                    <div className={styles.newsMeta}>
-                      <span className={styles.newsSource}>{item.source}</span>
-                      <span className={styles.newsDate}>{item.date}</span>
-                    </div>
-                    <div className={styles.newsTitle}>{item.title}</div>
-                    <div className={styles.newsDesc}>{item.desc}</div>
-                  </div>
-                </a>
-              ))}
-            </div>
-          )}
+          <DistrictNews districts={DISTRICTS} />
 
         </section>
 
