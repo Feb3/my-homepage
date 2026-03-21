@@ -23,7 +23,7 @@ async function fetchNaver(query, clientId, clientSecret, display = 5) {
         "X-Naver-Client-Id": clientId,
         "X-Naver-Client-Secret": clientSecret,
       },
-      next: { revalidate: 3600 },
+      cache: "no-store",
     }
   );
   if (!res.ok) return [];
@@ -50,7 +50,7 @@ async function getWeather() {
   try {
     const res = await fetch(
       "https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.9780&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code&daily=temperature_2m_max,temperature_2m_min&timezone=Asia%2FSeoul",
-      { next: { revalidate: 1800 } }
+      { cache: "no-store" }
     );
     const data = await res.json();
     const c = data.current;
@@ -71,25 +71,25 @@ async function getWeather() {
 }
 
 async function getNews(clientId, clientSecret) {
+  if (!clientId || !clientSecret) return { publicNews: [], districtNews: [] };
   try {
-    // 공공재개발 뉴스 5건
+    // 공공재개발 뉴스 - 제목에 "공공재개발" 포함된 것만
     const publicItems = await fetchNaver("공공재개발", clientId, clientSecret, 10);
     const publicNews = publicItems
       .map(formatItem)
       .filter((item) => item.title.includes("공공재개발"))
       .slice(0, 5);
 
-    // 담당 지구 뉴스 - 모든 지구 동시 검색 후 최신 5건
+    // 담당 지구 뉴스 - 제목에 지구명 포함된 것만
     const districtResults = await Promise.all(
       DISTRICTS.map((d) => fetchNaver(`${d} 재개발`, clientId, clientSecret, 3))
     );
-  const seen = new Set(publicNews.map((n) => n.url));
+    const seen = new Set(publicNews.map((n) => n.url));
     const districtNews = districtResults
       .flat()
       .map(formatItem)
       .filter((item) => {
         if (seen.has(item.url)) return false;
-        // 제목에 담당 지구명이 포함된 것만 허용
         const hasDistrict = DISTRICTS.some((d) => item.title.includes(d));
         if (!hasDistrict) return false;
         seen.add(item.url);
@@ -166,14 +166,13 @@ export default async function Home() {
       <div className={styles.main}>
         <section className={styles.newsSection}>
 
-          {/* 공공재개발 뉴스 */}
           <div className={styles.sectionLabel}>
             공공재개발 뉴스
             <span className={styles.labelLine}></span>
             <span className={styles.labelBadge}>실시간</span>
           </div>
           {publicNews.length === 0 ? (
-            <div className={styles.newsEmpty}>뉴스를 불러오는 중이거나 API 키를 확인해주세요.</div>
+            <div className={styles.newsEmpty}>관련 뉴스가 없거나 불러오는 중입니다.</div>
           ) : (
             <div className={styles.newsList}>
               {publicNews.map((item, i) => (
@@ -192,7 +191,6 @@ export default async function Home() {
             </div>
           )}
 
-          {/* 담당 지구 뉴스 */}
           <div className={styles.sectionLabel} style={{marginTop: "36px"}}>
             담당 지구 뉴스
             <span className={styles.labelLine}></span>
