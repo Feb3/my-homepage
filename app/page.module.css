@@ -246,3 +246,18 @@
   .sidebar { border-top: 1px solid #d4c9b0; }
   .newsSection { border-right: none; }
 }
+
+.districtList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 10px;
+}
+.districtTag {
+  background: #f5f0e8;
+  border: 1px solid #d4c9b0;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: #7a7060;
+  letter-spacing: 0.03em;
+}
