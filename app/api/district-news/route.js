@@ -48,7 +48,7 @@ export async function GET(request) {
       const wordsB = b.replace(/[^\w가-힣]/g, " ").split(/\s+/).filter((w) => w.length >= 2);
       const common = wordsB.filter((w) => wordsA.has(w)).length;
       const similarity = common / Math.max(wordsA.size, wordsB.length);
-      return similarity >= 0.5; // 50% 이상 단어 겹치면 같은 뉴스로 판단
+      return similarity >= 0.3; // 30% 이상 단어 겹치면 같은 뉴스로 판단
     }
 
     // 그룹화: 유사한 기사끼리 묶기
