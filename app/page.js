@@ -80,12 +80,15 @@ async function getNews(clientId, clientSecret) {
     const districtResults = await Promise.all(
       DISTRICTS.map((d) => fetchNaver(`${d} 공공재개발`, clientId, clientSecret, 3))
     );
-    const seen = new Set(publicNews.map((n) => n.url));
+  const seen = new Set(publicNews.map((n) => n.url));
     const districtNews = districtResults
       .flat()
       .map(formatItem)
       .filter((item) => {
         if (seen.has(item.url)) return false;
+        // 제목에 담당 지구명이 포함된 것만 허용
+        const hasDistrict = DISTRICTS.some((d) => item.title.includes(d));
+        if (!hasDistrict) return false;
         seen.add(item.url);
         return true;
       })
