@@ -261,3 +261,74 @@
   color: #7a7060;
   letter-spacing: 0.03em;
 }
+.districtButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 20px;
+}
+
+.districtBtn {
+  background: #f5f0e8;
+  border: 1px solid #d4c9b0;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-family: inherit;
+  color: #1a1a2e;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-weight: 500;
+}
+
+.districtBtn:hover {
+  background: #1a1a2e;
+  color: #f5f0e8;
+  border-color: #1a1a2e;
+}
+
+.districtBtnActive {
+  background: #c94a2e;
+  color: #f5f0e8;
+  border-color: #c94a2e;
+}
+
+.districtNewsBox {
+  border: 1px solid #d4c9b0;
+  padding: 20px;
+  margin-top: 8px;
+  background: #fdfaf4;
+}
+
+.districtNewsTitle {
+  font-family: Georgia, serif;
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tabButtons {
+  display: flex;
+  gap: 4px;
+}
+
+.tabBtn {
+  background: #f5f0e8;
+  border: 1px solid #d4c9b0;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-family: inherit;
+  color: #8a8070;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.tabBtnActive {
+  background: #1a1a2e;
+  color: #f5f0e8;
+  border-color: #1a1a2e;
+}
