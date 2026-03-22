@@ -40,135 +40,31 @@ async function getWeather() {
   } catch { return null; }
 }
 
-// Claude AI로 뉴스 요약
-async function summarizeNews(items) {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY;
-  if (!anthropicKey || items.length === 0) return items;
-
-  try {
-    const prompt = items.map((item, i) =>
-      `${i + 1}. 제목: ${item.title}\n내용: ${item.desc}`
-    ).join("\n\n");
-
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": anthropicKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1000,
-        messages: [{
-          role: "user",
-          content: `아래 뉴스 ${items.length}건을 각각 핵심만 1~2문장으로 간결하게 요약해줘. 번호 순서대로, 각 줄에 번호와 요약만 써줘. 예: 1. 요약내용\n\n${prompt}`
-        }]
-      }),
-    });
-
-    const data = await res.json();
-    const text = data.content?.[0]?.text ?? "";
-    const lines = text.split("\n").filter((l) => l.trim());
-
-    return items.map((item, i) => {
-      const line = lines.find((l) => l.startsWith(`${i + 1}.`));
-      const summary = line ? line.replace(/^\d+\.\s*/, "").trim() : item.desc;
-      return { ...item, desc: summary };
-    });
-  } catch {
-    return items;
-  }
-}
-
 async function getPublicNews() {
-  const clientId = process.env.NAVER_CLIENT_ID;
-  const clientSecret = process.env.NAVER_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return [];
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return [];
   try {
     const res = await fetch(
-      `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent("공공재개발")}&display=20&sort=date`,
-      { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret }, cache: "no-store" }
+      `${supabaseUrl}/rest/v1/news_summary?type=eq.public&order=created_at.desc&limit=1`,
+      { headers: { "apikey": supabaseKey, "Authorization": `Bearer ${supabaseKey}` }, cache: "no-store" }
     );
-    if (!res.ok) return [];
     const data = await res.json();
-
-    // Claude 필터링
-    const anthropicKey = process.env.ANTHROPIC_API_KEY;
-    const items = data.items.map((item) => ({
-      title: item.title.replace(/<[^>]+>/g, ""),
-      desc: item.description.replace(/<[^>]+>/g, ""),
-      url: item.originallink || item.link,
-      source: item.originallink ? new URL(item.originallink).hostname.replace("www.", "") : "뉴스",
-      date: new Date(item.pubDate).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }),
-    }));
-
-    let filtered = items;
-    if (anthropicKey) {
-      try {
-        const titles = items.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
-        const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-api-key": anthropicKey, "anthropic-version": "2023-06-01" },
-          body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
-            max_tokens: 200,
-            messages: [{ role: "user", content: `아래 뉴스에서 LH/SH 주도 공공재개발이거나 수도권/전국 정책 관련인 번호만 쉼표로 답해줘. 지방 단독, 노후계획도시 제외.\n\n${titles}` }]
-          }),
-        });
-        const aiData = await aiRes.json();
-        const answer = aiData.content?.[0]?.text ?? "";
-        const indices = answer.match(/\d+/g)?.map((n) => parseInt(n) - 1).filter((i) => i >= 0 && i < items.length) ?? [];
-        if (indices.length > 0) filtered = indices.map((i) => items[i]);
-      } catch { filtered = items; }
-    }
-
-    const topItems = filtered.slice(0, 3);
-    // AI 요약 적용
-    return await summarizeNews(topItems);
+    return data?.[0]?.items ?? [];
   } catch { return []; }
 }
 
 async function getDistrictLatestNews() {
-  const clientId = process.env.NAVER_CLIENT_ID;
-  const clientSecret = process.env.NAVER_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return [];
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseKey) return [];
   try {
-    const results = await Promise.all(
-      DISTRICTS.map(async (d) => {
-        const res = await fetch(
-          `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(d + " 재개발")}&display=5&sort=date`,
-          { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret }, cache: "no-store" }
-        );
-        if (!res.ok) return [];
-        const data = await res.json();
-        return (data.items || []).filter((item) =>
-          item.title.replace(/<[^>]+>/g, "").includes(d)
-        );
-      })
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/news_summary?type=eq.district&order=created_at.desc&limit=1`,
+      { headers: { "apikey": supabaseKey, "Authorization": `Bearer ${supabaseKey}` }, cache: "no-store" }
     );
-
-    const seen = new Set();
-    const topItems = results
-      .flat()
-      .map((item) => ({
-        title: item.title.replace(/<[^>]+>/g, ""),
-        desc: item.description.replace(/<[^>]+>/g, ""),
-        url: item.originallink || item.link,
-        source: item.originallink ? new URL(item.originallink).hostname.replace("www.", "") : "뉴스",
-        date: new Date(item.pubDate).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" }),
-        pubDate: new Date(item.pubDate).getTime(),
-      }))
-      .filter((item) => {
-        if (seen.has(item.url)) return false;
-        seen.add(item.url);
-        return true;
-      })
-      .sort((a, b) => b.pubDate - a.pubDate)
-      .slice(0, 10);
-
-    // AI 요약 적용
-    return await summarizeNews(topItems);
+    const data = await res.json();
+    return data?.[0]?.items ?? [];
   } catch { return []; }
 }
 
@@ -204,7 +100,7 @@ export default async function Home() {
           </h1>
           <p className={styles.sub}>날씨 · 실시간 뉴스 · 주요 링크 — 매일 자동 최신화되는 나만의 시작 페이지</p>
           <div className={styles.badges}>
-            {["날씨 30분 갱신", "뉴스 1시간 갱신", "AI 요약"].map((b) => (
+            {["날씨 30분 갱신", "매일 8시 AI 요약", "Vercel 자동 배포"].map((b) => (
               <span key={b} className={styles.badge}>{b}</span>
             ))}
           </div>
@@ -241,7 +137,7 @@ export default async function Home() {
             <span className={styles.labelBadge}>AI 요약</span>
           </div>
           {publicNews.length === 0 ? (
-            <div className={styles.newsEmpty}>관련 뉴스가 없거나 불러오는 중입니다.</div>
+            <div className={styles.newsEmpty}>오늘의 AI 요약을 준비 중입니다. 매일 오전 8시에 업데이트됩니다.</div>
           ) : (
             <div className={styles.newsList}>
               {publicNews.map((item, i) => (
@@ -268,7 +164,7 @@ export default async function Home() {
             <span className={styles.labelBadge}>AI 요약</span>
           </div>
           {districtLatestNews.length === 0 ? (
-            <div className={styles.newsEmpty}>담당 지구 관련 최신 뉴스가 없습니다.</div>
+            <div className={styles.newsEmpty}>오늘의 AI 요약을 준비 중입니다. 매일 오전 8시에 업데이트됩니다.</div>
           ) : (
             <div className={styles.newsList}>
               {districtLatestNews.map((item, i) => (
@@ -335,7 +231,7 @@ export default async function Home() {
       <footer className={styles.footer}>
         <div className={styles.footerLeft}>
           <span className={styles.liveDot}></span>
-          날씨 30분 · 뉴스 1시간 주기 자동 갱신 · AI 요약
+          날씨 30분 갱신 · 뉴스 매일 오전 8시 AI 요약
         </div>
         <span>나만의 시작 홈페이지 · Vercel + Next.js</span>
       </footer>
