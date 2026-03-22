@@ -21,11 +21,13 @@ export async function GET(request) {
     );
     const data = await res.json();
     const news = data.map((item) => ({
-      title: item.title,
-      desc: item.description,
+      title: (item.title || "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim(),
+      desc: (item.description || "").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim(),
       url: item.url,
       source: item.source,
-      date: new Date(item.pub_date).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }),
+      date: new Date(item.pub_date).toLocaleDateString("ko-KR", {
+        year: "numeric", month: "long", day: "numeric",
+      }),
     }));
     return Response.json({ news });
   } catch (e) {
