@@ -22,10 +22,72 @@ const DISTRICTS = [
   { name: "장위9구역", aliases: ["장위9구역", "장위 9구역"], query: "장위9구역 공공재개발" },
   { name: "상계3구역", aliases: ["상계3구역", "상계 3구역"], query: "상계3구역 공공재개발" },
   { name: "봉천13구역", aliases: ["봉천13구역", "봉천 13구역"], query: "봉천13구역 공공재개발" },
-  { name: "신설1구역", aliases: ["신설1구역", "신설제1", "신설 1구역"], query: "신설1구역" },
+  { name: "신설1구역", aliases: ["신설1구역", "신설제1", "신설 1구역"], query: "신설1구역 공공재개발" },
   { name: "도림1구역", aliases: ["도림1구역", "도림 1구역"], query: "도림1구역 공공재개발" },
   { name: "중화5구역", aliases: ["중화5구역", "중화 5구역"], query: "중화5구역 공공재개발" },
 ];
+
+// 네이버 뉴스 검색
+async function searchNaver(query, clientId, clientSecret) {
+  try {
+    const res = await fetch(
+      `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(query)}&display=50&sort=date`,
+      {
+        headers: {
+          "X-Naver-Client-Id": clientId,
+          "X-Naver-Client-Secret": clientSecret,
+        },
+        cache: "no-store",
+      }
+    );
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.items || []).map((item) => ({
+      title: item.title.replace(/<[^>]+>/g, ""),
+      url: item.originallink || item.link,
+      pub_date: new Date(item.pubDate).toISOString(),
+      source: item.originallink
+        ? new URL(item.originallink).hostname.replace("www.", "")
+        : "뉴스",
+      description: item.description.replace(/<[^>]+>/g, ""),
+    }));
+  } catch { return []; }
+}
+
+// 구글 RSS 검색
+async function searchGoogle(query) {
+  try {
+    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return [];
+    const xml = await res.text();
+
+    // XML 파싱
+    const items = [];
+    const itemMatches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g);
+    for (const match of itemMatches) {
+      const itemXml = match[1];
+      const title = itemXml.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1]
+        ?? itemXml.match(/<title>(.*?)<\/title>/)?.[1] ?? "";
+      const link = itemXml.match(/<link>(.*?)<\/link>/)?.[1] ?? "";
+      const pubDate = itemXml.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] ?? "";
+      const source = itemXml.match(/<source[^>]*>(.*?)<\/source>/)?.[1] ?? "";
+      const desc = itemXml.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1]
+        ?? itemXml.match(/<description>(.*?)<\/description>/)?.[1] ?? "";
+
+      if (title && link) {
+        items.push({
+          title: title.replace(/<[^>]+>/g, "").trim(),
+          url: link.trim(),
+          pub_date: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
+          source: source.trim() || (link ? new URL(link).hostname.replace("www.", "") : "뉴스"),
+          description: desc.replace(/<[^>]+>/g, "").trim(),
+        });
+      }
+    }
+    return items;
+  } catch { return []; }
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -49,34 +111,34 @@ export async function GET(request) {
 
   for (const districtObj of DISTRICTS) {
     try {
-      const res = await fetch(
-        `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(districtObj.query)}&display=100&sort=date`,
-        {
-          headers: {
-            "X-Naver-Client-Id": clientId,
-            "X-Naver-Client-Secret": clientSecret,
-          },
-          cache: "no-store",
-        }
-      );
-      const data = await res.json();
-      const items = (data.items || [])
-        .filter((item) => {
-          const title = item.title.replace(/<[^>]+>/g, "");
-          return districtObj.aliases.some((alias) => title.includes(alias));
-        })
-        .map((item) => ({
-          district: districtObj.name,
-          title: item.title.replace(/<[^>]+>/g, ""),
-          description: item.description.replace(/<[^>]+>/g, ""),
-          url: item.originallink || item.link,
-          source: item.originallink
-            ? new URL(item.originallink).hostname.replace("www.", "")
-            : "뉴스",
-          pub_date: new Date(item.pubDate).toISOString(),
-        }));
+      // 네이버 + 구글 동시 검색
+      const [naverItems, googleItems] = await Promise.all([
+        searchNaver(districtObj.query, clientId, clientSecret),
+        searchGoogle(districtObj.query),
+      ]);
 
-      if (items.length > 0) {
+      // 합치고 중복 URL 제거
+      const allItems = [...naverItems, ...googleItems];
+      const seen = new Set();
+      const merged = allItems.filter((item) => {
+        if (seen.has(item.url)) return false;
+        seen.add(item.url);
+        return true;
+      });
+
+      // 지구명 포함 여부 필터링
+      const filtered = merged.filter((item) =>
+        districtObj.aliases.some((alias) => item.title.includes(alias))
+      ).map((item) => ({
+        district: districtObj.name,
+        title: item.title,
+        description: item.description,
+        url: item.url,
+        source: item.source,
+        pub_date: item.pub_date,
+      }));
+
+      if (filtered.length > 0) {
         await fetch(`${supabaseUrl}/rest/v1/news_archive`, {
           method: "POST",
           headers: {
@@ -85,10 +147,10 @@ export async function GET(request) {
             "Authorization": `Bearer ${supabaseKey}`,
             "Prefer": "resolution=ignore-duplicates",
           },
-          body: JSON.stringify(items),
+          body: JSON.stringify(filtered),
         });
-        totalSaved += items.length;
-        results.push({ district: districtObj.name, count: items.length });
+        totalSaved += filtered.length;
+        results.push({ district: districtObj.name, count: filtered.length });
       } else {
         results.push({ district: districtObj.name, count: 0 });
       }
