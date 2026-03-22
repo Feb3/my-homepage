@@ -30,7 +30,7 @@ async function summarizeWithClaude(items, anthropicKey) {
         max_tokens: 1000,
         messages: [{
           role: "user",
-          content: `아래 뉴스 ${items.length}건을 각각 핵심만 1~2문장으로 간결하게 요약해줘. 번호 순서대로, 각 줄에 번호와 요약만 써줘. 예: 1. 요약내용\n\n${prompt}`
+          content: `아래 뉴스 ${items.length}건을 각각 3~4문장으로 요약해줘. 핵심 내용, 관련 구역명, 사업 진행 상황, 의미나 영향까지 구체적으로 담아줘. 번호 순서대로, 각 줄에 번호와 요약만 써줘. 예: 1. 요약내용\n\n${prompt}`
         }]
       }),
     });
