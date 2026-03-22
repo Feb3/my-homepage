@@ -2,11 +2,29 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const DISTRICTS = [
-  "수원고색", "광명6구역", "광명3구역", "안양충훈부", "의왕내손",
-  "숭인동1169", "시흥4동4", "면목9구역", "성북1구역", "신월5동77",
-  "신월7동2", "거여새마을", "창동470", "천호A1-1", "전농9구역",
-  "가리봉2-92", "신길1구역", "장위9구역", "상계3구역", "봉천13구역",
-  "신설1구역", "도림1구역", "중화5구역"
+  { name: "수원고색", aliases: ["수원고색"] },
+  { name: "광명6구역", aliases: ["광명6구역", "광명 6구역"] },
+  { name: "광명3구역", aliases: ["광명3구역", "광명 3구역"] },
+  { name: "안양충훈부", aliases: ["안양충훈부"] },
+  { name: "의왕내손", aliases: ["의왕내손", "내손"] },
+  { name: "숭인동1169", aliases: ["숭인동1169", "숭인1169"] },
+  { name: "시흥4동4", aliases: ["시흥4동4", "시흥4동"] },
+  { name: "면목9구역", aliases: ["면목9구역", "면목 9구역"] },
+  { name: "성북1구역", aliases: ["성북1구역", "성북 1구역"] },
+  { name: "신월5동77", aliases: ["신월5동77", "신월5동"] },
+  { name: "신월7동2", aliases: ["신월7동2", "신월7동"] },
+  { name: "거여새마을", aliases: ["거여새마을", "거여"] },
+  { name: "창동470", aliases: ["창동470", "창동 470"] },
+  { name: "천호A1-1", aliases: ["천호A1-1", "천호A1", "천호a1"] },
+  { name: "전농9구역", aliases: ["전농9구역", "전농 9구역"] },
+  { name: "가리봉2-92", aliases: ["가리봉2-92", "가리봉2"] },
+  { name: "신길1구역", aliases: ["신길1구역", "신길 1구역"] },
+  { name: "장위9구역", aliases: ["장위9구역", "장위 9구역"] },
+  { name: "상계3구역", aliases: ["상계3구역", "상계 3구역"] },
+  { name: "봉천13구역", aliases: ["봉천13구역", "봉천 13구역"] },
+  { name: "신설1구역", aliases: ["신설1구역", "신설제1", "신설 1구역"] },
+  { name: "도림1구역", aliases: ["도림1구역", "도림 1구역"] },
+  { name: "중화5구역", aliases: ["중화5구역", "중화 5구역"] },
 ];
 
 export async function GET(request) {
@@ -29,11 +47,11 @@ export async function GET(request) {
   let totalSaved = 0;
   const results = [];
 
-  for (const district of DISTRICTS) {
+  for (const districtObj of DISTRICTS) {
+    const district = districtObj.name;
     try {
-      // 네이버 API는 최대 100개까지 가져올 수 있어요
       const res = await fetch(
-        `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(district + " 재개발")}&display=100&sort=date`,
+        `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent(districtObj.aliases[0] + " 재개발")}&display=100&sort=date`,
         {
           headers: {
             "X-Naver-Client-Id": clientId,
@@ -44,9 +62,12 @@ export async function GET(request) {
       );
       const data = await res.json();
       const items = (data.items || [])
-        .filter((item) => item.title.replace(/<[^>]+>/g, "").includes(district))
+        .filter((item) => {
+          const title = item.title.replace(/<[^>]+>/g, "");
+          return districtObj.aliases.some((alias) => title.includes(alias));
+        })
         .map((item) => ({
-          district,
+          district: districtObj.name,
           title: item.title.replace(/<[^>]+>/g, ""),
           description: item.description.replace(/<[^>]+>/g, ""),
           url: item.originallink || item.link,
@@ -57,7 +78,7 @@ export async function GET(request) {
         }));
 
       if (items.length > 0) {
-        const saveRes = await fetch(`${supabaseUrl}/rest/v1/news_archive`, {
+        await fetch(`${supabaseUrl}/rest/v1/news_archive`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -69,6 +90,8 @@ export async function GET(request) {
         });
         totalSaved += items.length;
         results.push({ district, count: items.length });
+      } else {
+        results.push({ district, count: 0 });
       }
     } catch (e) {
       results.push({ district, error: e.message });
