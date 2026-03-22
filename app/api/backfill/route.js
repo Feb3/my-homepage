@@ -58,37 +58,66 @@ async function searchNaver(query, clientId, clientSecret) {
 async function searchGoogle(query) {
   try {
     const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=ko&gl=KR&ceid=KR:ko`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0" },
+      cache: "no-store"
+    });
     if (!res.ok) return [];
     const xml = await res.text();
 
-    // XML 파싱
     const items = [];
-    const itemMatches = xml.matchAll(/<item>([\s\S]*?)<\/item>/g);
-    for (const match of itemMatches) {
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    let match;
+
+    while ((match = itemRegex.exec(xml)) !== null) {
       const itemXml = match[1];
-      const title = itemXml.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1]
-        ?? itemXml.match(/<title>(.*?)<\/title>/)?.[1] ?? "";
-      const link = itemXml.match(/<link>(.*?)<\/link>/)?.[1] ?? "";
-      const pubDate = itemXml.match(/<pubDate>(.*?)<\/pubDate>/)?.[1] ?? "";
-      const source = itemXml.match(/<source[^>]*>(.*?)<\/source>/)?.[1] ?? "";
-      const desc = itemXml.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1]
-        ?? itemXml.match(/<description>(.*?)<\/description>/)?.[1] ?? "";
+
+      // 제목 추출 (CDATA 포함)
+      const titleMatch = itemXml.match(/<title>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/);
+      const title = titleMatch?.[1]?.trim() ?? "";
+
+      // 링크 추출
+      const linkMatch = itemXml.match(/<link>([\s\S]*?)<\/link>/);
+      const link = linkMatch?.[1]?.trim() ?? "";
+
+      // 날짜 추출
+      const dateMatch = itemXml.match(/<pubDate>([\s\S]*?)<\/pubDate>/);
+      const pubDate = dateMatch?.[1]?.trim() ?? "";
+
+      // 출처 추출
+      const sourceMatch = itemXml.match(/<source[^>]*>([\s\S]*?)<\/source>/);
+      const source = sourceMatch?.[1]?.trim() ?? "";
+
+      // 설명 추출
+      const descMatch = itemXml.match(/<description>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/description>/);
+      const desc = descMatch?.[1]?.replace(/<[^>]+>/g, "").trim() ?? "";
 
       if (title && link) {
+        let parsedDate;
+        try { parsedDate = new Date(pubDate).toISOString(); }
+        catch { parsedDate = new Date().toISOString(); }
+
+        let parsedSource = source;
+        if (!parsedSource && link) {
+          try { parsedSource = new URL(link).hostname.replace("www.", ""); }
+          catch { parsedSource = "뉴스"; }
+        }
+
         items.push({
-          title: title.replace(/<[^>]+>/g, "").trim(),
-          url: link.trim(),
-          pub_date: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-          source: source.trim() || (link ? new URL(link).hostname.replace("www.", "") : "뉴스"),
-          description: desc.replace(/<[^>]+>/g, "").trim(),
+          title: title.replace(/<[^>]+>/g, ""),
+          url: link,
+          pub_date: parsedDate,
+          source: parsedSource,
+          description: desc,
         });
       }
     }
     return items;
-  } catch { return []; }
+  } catch (e) {
+    console.error("Google RSS 오류:", e.message);
+    return [];
+  }
 }
-
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const secret = searchParams.get("secret");
