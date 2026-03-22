@@ -43,21 +43,57 @@ async function getWeather() {
 async function getPublicNews() {
   const clientId = process.env.NAVER_CLIENT_ID;
   const clientSecret = process.env.NAVER_CLIENT_SECRET;
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
   if (!clientId || !clientSecret) return [];
+
   try {
+    // 뉴스 20개 가져오기
     const res = await fetch(
-      `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent("공공재개발")}&display=10&sort=date`,
+      `https://openapi.naver.com/v1/search/news.json?query=${encodeURIComponent("공공재개발")}&display=20&sort=date`,
       { headers: { "X-Naver-Client-Id": clientId, "X-Naver-Client-Secret": clientSecret }, cache: "no-store" }
     );
     if (!res.ok) return [];
     const data = await res.json();
-    return data.items.map((item) => ({
+    const items = data.items.map((item) => ({
       title: item.title.replace(/<[^>]+>/g, ""),
       desc: item.description.replace(/<[^>]+>/g, ""),
       url: item.originallink || item.link,
       source: item.originallink ? new URL(item.originallink).hostname.replace("www.", "") : "뉴스",
       date: new Date(item.pubDate).toLocaleDateString("ko-KR", { month: "long", day: "numeric" }),
-    })).slice(0, 3);
+    }));
+
+    if (!anthropicKey) return items.slice(0, 3);
+
+    // Claude AI로 수도권/전국 정책 관련 뉴스만 필터링
+    const titles = items.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
+    const aiRes = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": anthropicKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 200,
+        messages: [{
+          role: "user",
+          content: `아래 공공재개발 뉴스 목록에서 수도권(서울/경기/인천) 관련이거나 전국 정책 관련인 뉴스 번호만 골라줘. 대구, 부산, 광주 등 지방 단독 뉴스는 제외. 번호만 쉼표로 구분해서 답해줘. 예: 1,3,5\n\n${titles}`
+        }]
+      }),
+    });
+    const aiData = await aiRes.json();
+    const answer = aiData.content?.[0]?.text ?? "";
+    const validIndices = answer
+      .match(/\d+/g)
+      ?.map((n) => parseInt(n) - 1)
+      .filter((i) => i >= 0 && i < items.length) ?? [];
+
+    const filtered = validIndices.length > 0
+      ? validIndices.map((i) => items[i])
+      : items;
+
+    return filtered.slice(0, 3);
   } catch { return []; }
 }
 
