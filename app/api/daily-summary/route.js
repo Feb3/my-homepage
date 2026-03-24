@@ -42,8 +42,7 @@ async function filterPublicNews(items, anthropicKey) {
   try {
     const titles = items.map((item, i) => `${i + 1}. ${item.title}`).join("\n");
     const answer = await callClaude(
-      `아래 뉴스에서 LH/SH 주도 공공재개발이거나 수도권/전국 공공재개발 정책 관련인 번호만 쉼표로 답해줘. 공공임대, 노후계획도시, 민간재개발, 지방 단독 뉴스는 제외. 없으면 "없음".\n\n${titles}`,
-      anthropicKey, 100
+      `아래 뉴스 목록에서 아래 조건을 모두 만족하는 번호만 쉼표로 답해줘. 조건에 맞지 않으면 과감하게 제외해. 없으면 반드시 "없음"이라고만 답해.\n\n[포함 조건]\n- 제목에 "공공재개발"이라는 단어가 직접 포함되거나\n- LH 또는 SH가 시행하는 재개발 사업 관련이거나\n- 공공재개발 정책 변화 관련 (국토부, 서울시 정책)\n\n[제외 조건]\n- 공공임대, 분양가상한제, 노후계획도시, 재건축, GTX, 뉴타운\n- 민간 재개발 단독 뉴스\n- 지방(서울·수도권 외) 사업 단독 뉴스\n- 선거, 정치, 인물 관련\n- 공공재개발과 직접 관련 없는 부동산 일반 뉴스\n\n번호만 쉼표로 답해줘. 예: 3, 7, 12\n\n${titles}`,  anthropicKey, 100
     );
     if (answer.includes("없음")) return [];
     const indices = answer.match(/\d+/g)?.map((n) => parseInt(n) - 1).filter((i) => i >= 0 && i < items.length) ?? [];
